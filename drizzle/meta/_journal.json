@@ -8,6 +8,27 @@
       "when": 1787922865320,
       "tag": "0000_overrated_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788082320667,
+      "tag": "0001_new_quasar",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788168835755,
+      "tag": "0002_damp_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788340960856,
+      "tag": "0003_needy_ricochet",
+      "breakpoints": true
     }
   ]
 }

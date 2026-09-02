@@ -1,0 +1,1 @@
+ALTER TABLE "analyses" ADD COLUMN "health_score" integer DEFAULT 100;

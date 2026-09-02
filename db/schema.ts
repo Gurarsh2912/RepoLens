@@ -51,7 +51,8 @@ export const analyses = pgTable("analyses", {
 
   totalFiles: integer("total_files").default(0),
   totalIssues: integer("total_issues").default(0),
-
+  healthScore: integer("health_score").default(100),
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -67,10 +68,18 @@ export const analyzedFiles = pgTable("analyzed_files", {
 
   linesOfCode: integer("lines_of_code").default(0),
   complexity: integer("complexity").default(0),
+
   functionCount: integer("function_count").default(0),
+  classCount: integer("class_count").default(0),
+  interfaceCount: integer("interface_count").default(0),
+  typeCount: integer("type_count").default(0),
+
   dependencyCount: integer("dependency_count").default(0),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  inDegree: integer("in_degree").default(0),
+  outDegree: integer("out_degree").default(0),
+  importanceScore: integer("importance_score").default(0),
 });
 
 export const issues = pgTable("issues", {

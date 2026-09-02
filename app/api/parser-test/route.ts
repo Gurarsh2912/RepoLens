@@ -1,51 +1,22 @@
 import { NextResponse } from "next/server";
-
-import {
-  getRepository,
-  getRepositoryTree,
-  getFileContent,
-} from "@/lib/github/client";
-
-import { filterSourceFiles } from "@/lib/github/filterTree";
 import { parseSourceFile } from "@/lib/parser/parseSourceFile";
 
 export async function GET() {
-  try {
-    const repo = await getRepository("react", "react");
+  const code = `
+    export function hello() {}
 
-    const tree = await getRepositoryTree(
-      "react",
-      "react",
-      repo.default_branch
-    );
+class InternalService {}
 
-    const sourceFiles = filterSourceFiles(tree.tree);
+export class UserService {}
 
-    const firstFile = sourceFiles.find(
-    (file) => file.path === "packages/react/src/ReactClient.js"
-    );
-    if (!firstFile) {
-    throw new Error("No source file found");
-    }
+export interface User {}
 
-    const content = await getFileContent(
-      "react",
-      "react",
-      firstFile.path
-    );
+type InternalStatus = "x";
 
-    const parsed = parseSourceFile(
-      firstFile.path,
-      content
-    );
+export type Status = "active";
+  `;
 
-    return NextResponse.json(parsed);
-  } catch (error) {
-    console.error(error);
+  const result = parseSourceFile("test.ts", code);
 
-    return NextResponse.json(
-      { error: "Parser test failed" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(result);
 }
