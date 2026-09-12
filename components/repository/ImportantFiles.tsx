@@ -1,7 +1,4 @@
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -14,10 +11,12 @@ type FileData = {
 };
 
 type Props = {
+  repositoryId: number;
   files: FileData[];
 };
 
 export default function ImportantFiles({
+  repositoryId,
   files,
 }: Props) {
   return (
@@ -34,32 +33,35 @@ export default function ImportantFiles({
 
       <div className="divide-y">
         {files.slice(0, 5).map((file, index) => (
-          <div
+          <Link
+            href={`/repository/${repositoryId}/file/${file.id}`}
             key={file.id}
-            className="flex items-center justify-between gap-4 py-4"
+            className="block"
           >
-            <div className="flex min-w-0 items-center gap-4">
-              <span className="text-sm font-medium text-muted-foreground">
-                {String(index + 1).padStart(2, "0")}
-              </span>
+            <div className="flex items-center justify-between gap-4 py-4">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="text-sm font-medium text-muted-foreground">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
 
-              <div className="min-w-0">
-                <p className="truncate font-mono text-sm font-medium">
-                  {file.path}
-                </p>
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm font-medium">
+                    {file.path}
+                  </p>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {file.inDegree ?? 0} dependents
-                  {" · "}
-                  {file.outDegree ?? 0} dependencies
-                </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {file.inDegree ?? 0} dependents
+                    {" · "}
+                    {file.outDegree ?? 0} dependencies
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <Badge variant="secondary">
-              {file.importanceScore ?? 0}
-            </Badge>
-          </div>
+              <Badge variant="secondary">
+                {file.importanceScore ?? 0}
+              </Badge>
+            </div>
+          </Link>
         ))}
       </div>
     </section>

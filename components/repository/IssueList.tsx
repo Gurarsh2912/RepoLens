@@ -1,7 +1,4 @@
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -11,14 +8,17 @@ type IssueData = {
   severity: string;
   message: string;
   line: number | null;
+  fileId: number;
   filePath: string;
 };
 
 type Props = {
+  repositoryId: number;
   issues: IssueData[];
 };
 
 export default function IssueList({
+  repositoryId,
   issues,
 }: Props) {
   return (
@@ -35,41 +35,44 @@ export default function IssueList({
 
       <div className="space-y-3">
         {issues.map((issue) => (
-          <div
+          <Link
             key={issue.id}
-            className="rounded-xl border p-4"
+            href={`/repository/${repositoryId}/file/${issue.fileId}`}
+            className="block"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">
-                  {issue.message}
-                </p>
+            <div className="rounded-xl border p-4 transition-colors hover:bg-muted/40">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {issue.message}
+                  </p>
 
-                <p className="mt-2 font-mono text-xs">
-                  {issue.filePath}
-                  {issue.line
-                    ? `:${issue.line}`
-                    : ""}
-                </p>
+                  <p className="mt-2 font-mono text-xs">
+                    {issue.filePath}
+                    {issue.line
+                      ? `:${issue.line}`
+                      : ""}
+                  </p>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {issue.rule}
-                </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {issue.rule}
+                  </p>
+                </div>
+
+                <Badge
+                  variant={
+                    issue.severity === "error"
+                      ? "destructive"
+                      : issue.severity === "warning"
+                      ? "secondary"
+                      : "outline"
+                  }
+                >
+                  {issue.severity}
+                </Badge>
               </div>
-
-              <Badge
-                variant={
-                  issue.severity === "error"
-                    ? "destructive"
-                    : issue.severity === "warning"
-                    ? "secondary"
-                    : "outline"
-                }
-              >
-                {issue.severity}
-              </Badge>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </section>

@@ -1,8 +1,10 @@
 import {
   and,
-  eq,
   desc,
+  eq,
 } from "drizzle-orm";
+
+import Link from "next/link";
 
 import { db } from "@/db";
 
@@ -13,22 +15,26 @@ import {
   issues,
 } from "@/db/schema";
 
-import Link from "next/link";
-
 import RepositoryOverview from "@/components/repository/RepositoryOverview";
 import ImportantFiles from "@/components/repository/ImportantFiles";
 import IssueList from "@/components/repository/IssueList";
-import AIRepositoryReview from "@/components/repository/AIRepositoryReview";
-import AnalysisHistory from "@/components/repository/AnalysisHistory";
 
-export default async function RepositoryPage({
+export default async function HistoricalAnalysisPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{
+    id: string;
+    analysisId: string;
+  }>;
 }) {
-  const { id } = await params;
+  const { id, analysisId } =
+    await params;
 
-  const repositoryId = Number(id);
+  const repositoryId =
+    Number(id);
+
+  const selectedAnalysisId =
+    Number(analysisId);
 
   // 1. Get repository
   const [repository] = await db
@@ -50,41 +56,34 @@ export default async function RepositoryPage({
     );
   }
 
-  // 2. Get analysis history
-  // Get ALL analysis attempts for history
-  const analysisHistory =
-    await db
-      .select()
-      .from(analyses)
-      .where(
+  // 2. Get requested analysis
+  // Also verify it belongs to this repository
+  const [analysis] = await db
+    .select()
+    .from(analyses)
+    .where(
+      and(
+        eq(
+          analyses.id,
+          selectedAnalysisId
+        ),
         eq(
           analyses.repositoryId,
-          repository.id
+          repositoryId
         )
       )
-      .orderBy(
-        desc(
-          analyses.createdAt
-        )
-      );
-
-  // Dashboard should still use only
-  // the latest COMPLETED analysis
-  const analysis =
-    analysisHistory.find(
-      (item) =>
-        item.status === "completed"
-    );
+    )
+    .limit(1);
 
   if (!analysis) {
     return (
       <main className="p-8">
-        No completed analysis found
+        Analysis not found
       </main>
     );
   }
 
-  // 3. Get analyzed files
+  // 3. Get analyzed files from this exact run
   const files = await db
     .select()
     .from(analyzedFiles)
@@ -100,7 +99,7 @@ export default async function RepositoryPage({
       )
     );
 
-  // 4. Get detected issues
+  // 4. Get issues from this exact run
   const detectedIssues =
     await db
       .select({
@@ -127,6 +126,7 @@ export default async function RepositoryPage({
         )
       );
 
+  // 5. Severity counts for this historical run
   const severityCounts = {
     error: detectedIssues.filter(
       (issue) =>
@@ -147,6 +147,36 @@ export default async function RepositoryPage({
   return (
     <main className="min-h-screen bg-muted/30">
       <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="mb-8 space-y-3">
+
+          <Link
+            href={`/repository/${repository.id}/analysis/${analysis.id}/compare`}
+            className="inline-flex rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+            Compare with latest
+          </Link>
+          <Link
+            href={`/repository/${repository.id}`}
+            className="inline-flex text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            ← Back to latest analysis
+          </Link>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Historical analysis
+            </p>
+
+            <h1 className="text-2xl font-semibold">
+              Analysis #{analysis.id}
+            </h1>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              {analysis.createdAt.toLocaleString()}
+            </p>
+          </div>
+        </div>
+
         <RepositoryOverview
           name={repository.name}
           owner={repository.owner}
@@ -158,15 +188,6 @@ export default async function RepositoryPage({
             severityCounts
           }
         />
-
-        <div className="mt-6">
-          <Link
-            href={`/repository/${repository.id}/architecture`}
-            className="inline-flex rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-          >
-            View architecture
-          </Link>
-        </div>
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <ImportantFiles
@@ -182,30 +203,6 @@ export default async function RepositoryPage({
             }
             issues={
               detectedIssues
-            }
-          />
-        </div>
-
-        {/* Analysis History */}
-        <div className="mt-10">
-          <AnalysisHistory
-            repositoryId={
-              repository.id
-            }
-            analyses={
-              analysisHistory
-            }
-            currentAnalysisId={
-              analysis.id
-            }
-          />
-        </div>
-
-        {/* AI Architecture Review */}
-        <div className="mt-10">
-          <AIRepositoryReview
-            repositoryId={
-              repository.id
             }
           />
         </div>

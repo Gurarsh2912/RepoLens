@@ -161,3 +161,14 @@ export const verificationTokens = pgTable(
     }),
   ]
 );
+
+export const dependencyEdges = pgTable("dependency_edges", {
+  id: serial("id").primaryKey(),
+
+  analysisId: integer("analysis_id")
+    .notNull()
+    .references(() => analyses.id),
+
+  sourcePath: text("source_path").notNull(),
+  targetPath: text("target_path").notNull(),
+});
