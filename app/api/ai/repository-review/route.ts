@@ -1,37 +1,86 @@
 import { NextResponse } from "next/server";
+
 import { auth } from "@/auth";
 import { reviewRepository } from "@/lib/ai/reviewRepository";
+import { getOwnedRepository } from "@/lib/auth/getOwnedRepository";
 
-export async function POST(request: Request) {
+import { repositoryReviewSchema } from "@/lib/validation/ai";
+
+export async function POST(
+  request: Request
+) {
   try {
-    const session = await auth();
+    // 1. Authentication
+    const session =
+      await auth();
 
     if (!session?.user?.email) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+        {
+          error: "Unauthorized",
+        },
+        {
+          status: 401,
+        }
       );
     }
 
-    const body = await request.json();
+  let body;
 
-    const repositoryId = Number(
-      body.repositoryId
+  try {
+    body =
+      await request.json();
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "Invalid JSON body",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const validation =
+    repositoryReviewSchema.safeParse(
+      body
     );
 
-    if (
-      !repositoryId ||
-      Number.isNaN(repositoryId)
-    ) {
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error:
+          "Invalid repository ID",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const { repositoryId } =
+    validation.data;
+
+    // 4. Authorization
+    const repository =
+      await getOwnedRepository(
+        repositoryId
+      );
+
+    if (!repository) {
       return NextResponse.json(
         {
           error:
-            "Valid repositoryId is required",
+            "Repository not found",
         },
-        { status: 400 }
+        {
+          status: 404,
+        }
       );
     }
 
+    // 5. Generate AI review
     const result =
       await reviewRepository(
         repositoryId
@@ -42,18 +91,18 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error(
-        "Repository AI review failed:",
-        error
+      "Repository AI review failed:",
+      error
     );
 
     return NextResponse.json(
-        {
+      {
         error:
-            error instanceof Error
-            ? error.message
-            : "Failed to generate repository review",
-        },
-        { status: 500 }
+          "Failed to generate repository review",
+      },
+      {
+        status: 500,
+      }
     );
-    }
+  }
 }

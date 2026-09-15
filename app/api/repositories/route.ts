@@ -38,6 +38,8 @@ import { calculateComplexity } from "@/lib/analysis/calculateComplexity";
 
 import { processInBatches } from "@/lib/analysis/processInBatches";
 
+import { analyzeRepositorySchema } from "@/lib/validation/repository";
+
 export async function POST(request: Request) {
   // NEW:
   // Keeps track of the analysis currently being processed.
@@ -60,21 +62,44 @@ export async function POST(request: Request) {
     }
 
     // 2. Read GitHub URL
-    const body = await request.json();
+  let body;
 
-    const githubUrl = body.githubUrl;
+  try {
+    body =
+      await request.json();
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "Invalid JSON body",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
 
-    if (!githubUrl) {
-      return NextResponse.json(
-        {
-          error: "GitHub URL is required",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
+  const validation =
+    analyzeRepositorySchema.safeParse(
+      body
+    );
 
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error:
+          validation.error.issues[0]
+            ?.message ??
+          "Invalid request",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+const { githubUrl } =
+  validation.data;
     // 3. Parse GitHub URL
     const parsedRepo =
       parseGithubUrl(githubUrl);
