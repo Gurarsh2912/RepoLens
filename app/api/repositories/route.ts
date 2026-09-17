@@ -19,6 +19,7 @@ import {
   getRepository,
   getRepositoryTree,
   getFileContent,
+  GitHubApiError,
 } from "@/lib/github/client";
 
 import { filterSourceFiles } from "@/lib/github/filterTree";
@@ -39,6 +40,22 @@ import { calculateComplexity } from "@/lib/analysis/calculateComplexity";
 import { processInBatches } from "@/lib/analysis/processInBatches";
 
 import { analyzeRepositorySchema } from "@/lib/validation/repository";
+
+class RepositoryAnalysisError extends Error {
+  status: number;
+
+  constructor(
+    message: string,
+    status: number
+  ) {
+    super(message);
+
+    this.name =
+      "RepositoryAnalysisError";
+
+    this.status = status;
+  }
+}
 
 export async function POST(request: Request) {
   // NEW:
@@ -248,6 +265,13 @@ const { githubUrl } =
         tree.tree
       );
 
+    if (sourceFiles.length === 0) {
+      throw new RepositoryAnalysisError(
+        "No supported JavaScript or TypeScript source files were found. RepoLens currently supports .js, .jsx, .ts and .tsx files.",
+        422
+      );
+    }
+
     // Temporary development limit
     const filesToAnalyze =
       sourceFiles.slice(
@@ -290,136 +314,181 @@ const { githubUrl } =
         5,
 
         async (file) => {
-          // Fetch source code
-          const code =
-            await getFileContent(
-              owner,
-              repo,
-              file.path
-            );
+          try {
+            // Fetch source code
+            const code =
+              await getFileContent(
+                owner,
+                repo,
+                file.path
+              );
 
-          // Calculate complexity
-          const complexity =
-            calculateComplexity(
-              file.path,
-              code
-            );
+            // Calculate complexity
+            const complexity =
+              calculateComplexity(
+                file.path,
+                code
+              );
 
-          // Parse AST
-          const parsed =
-            parseSourceFile(
-              file.path,
-              code
-            );
+            // Parse AST
+            const parsed =
+              parseSourceFile(
+                file.path,
+                code
+              );
 
-          // Run static-analysis rules
-          const detectedIssues =
-            runRules({
-              parsedFile:
-                parsed,
+            // Run static-analysis rules
+            const detectedIssues =
+              runRules({
+                parsedFile: parsed,
+                code,
+              });
 
-              code,
-            });
+            // Store analyzed file
+            const [savedFile] =
+              await db
+                .insert(
+                  analyzedFiles
+                )
+                .values({
+                  analysisId:
+                    analysis.id,
 
-          // Store analyzed file
-          const [savedFile] =
-            await db
-              .insert(
-                analyzedFiles
-              )
-              .values({
-                analysisId:
-                  analysis.id,
+                  path:
+                    parsed.path,
+
+                  language:
+                    file.path.endsWith(
+                      ".ts"
+                    ) ||
+                    file.path.endsWith(
+                      ".tsx"
+                    )
+                      ? "TypeScript"
+                      : "JavaScript",
+
+                  linesOfCode:
+                    code.split(
+                      "\n"
+                    ).length,
+
+                  complexity,
+
+                  functionCount:
+                    parsed.functions
+                      .length,
+
+                  classCount:
+                    parsed.classes
+                      .length,
+
+                  interfaceCount:
+                    parsed.interfaces
+                      .length,
+
+                  typeCount:
+                    parsed.types
+                      .length,
+
+                  dependencyCount:
+                    parsed.imports
+                      .length,
+                })
+                .returning();
+
+            // Store issues
+            if (
+              detectedIssues.length >
+              0
+            ) {
+              await db
+                .insert(issues)
+                .values(
+                  detectedIssues.map(
+                    (issue) => ({
+                      analysisId:
+                        analysis.id,
+
+                      fileId:
+                        savedFile.id,
+
+                      rule:
+                        issue.rule,
+
+                      severity:
+                        issue.severity,
+
+                      message:
+                        issue.message,
+
+                      line:
+                        issue.line ??
+                        null,
+                    })
+                  )
+                );
+            }
+
+            return {
+              success: true as const,
+
+              parsed,
+              complexity,
+              detectedIssues,
+            };
+          } catch (error) {
+            /*
+            * Some individual files may disappear
+            * between fetching the tree and fetching
+            * their contents, or GitHub may not return
+            * usable content for a specific file.
+            *
+            * These should not destroy the entire run.
+            */
+            if (
+              error instanceof
+                GitHubApiError &&
+              (error.code ===
+                "NO_CONTENT" ||
+                error.code ===
+                  "NOT_FOUND")
+            ) {
+              console.warn(
+                `Skipping ${file.path}: ${error.message}`
+              );
+
+              return {
+                success:
+                  false as const,
 
                 path:
-                  parsed.path,
+                  file.path,
 
-                language:
-                  file.path.endsWith(
-                    ".ts"
-                  ) ||
-                  file.path.endsWith(
-                    ".tsx"
-                  )
-                    ? "TypeScript"
-                    : "JavaScript",
+                reason:
+                  error.message,
+              };
+            }
 
-                linesOfCode:
-                  code.split(
-                    "\n"
-                  ).length,
-
-                complexity,
-
-                functionCount:
-                  parsed.functions
-                    .length,
-
-                classCount:
-                  parsed.classes
-                    .length,
-
-                interfaceCount:
-                  parsed.interfaces
-                    .length,
-
-                typeCount:
-                  parsed.types
-                    .length,
-
-                dependencyCount:
-                  parsed.imports
-                    .length,
-              })
-              .returning();
-
-          // Store detected issues
-          if (
-            detectedIssues.length >
-            0
-          ) {
-            await db
-              .insert(issues)
-              .values(
-                detectedIssues.map(
-                  (issue) => ({
-                    analysisId:
-                      analysis.id,
-
-                    fileId:
-                      savedFile.id,
-
-                    rule:
-                      issue.rule,
-
-                    severity:
-                      issue.severity,
-
-                    message:
-                      issue.message,
-
-                    line:
-                      issue.line ??
-                      null,
-                  })
-                )
-              );
+            /*
+            * Rate limits, authentication failures,
+            * GitHub outages and unexpected errors
+            * are repository-level failures.
+            */
+            throw error;
           }
-
-          // Return data for aggregation
-          return {
-            parsed,
-            complexity,
-            detectedIssues,
-          };
         }
       );
 
     // 11. Aggregate batch results
+
     for (
       const result
       of fileResults
     ) {
+      if (!result.success) {
+        continue;
+      }
+
       parsedFiles.push(
         result.parsed
       );
@@ -435,6 +504,14 @@ const { githubUrl } =
 
       totalIssues +=
         result.detectedIssues.length;
+    }
+    if (
+      parsedFiles.length === 0
+    ) {
+      throw new RepositoryAnalysisError(
+        "RepoLens could not successfully analyze any supported source files in this repository.",
+        422
+      );
     }
 
     // 12. Build dependency graph
@@ -511,23 +588,6 @@ const { githubUrl } =
         fileHealthData
       );
 
-    console.log(
-      "Analyzed files:",
-      parsedFiles.length
-    );
-
-    console.log(
-      "Top important files:",
-      importantFiles.slice(
-        0,
-        5
-      )
-    );
-
-    console.log(
-      "Health score:",
-      healthScore
-    );
 
     // 17. Store graph metrics in batches
     await processInBatches(
@@ -575,7 +635,7 @@ const { githubUrl } =
           "completed",
 
         totalFiles:
-          filesToAnalyze.length,
+          parsedFiles.length,
 
         totalIssues,
 
@@ -606,7 +666,7 @@ const { githubUrl } =
             "completed",
 
           totalFiles:
-            filesToAnalyze.length,
+            parsedFiles.length,
 
           totalIssues,
 
@@ -652,15 +712,47 @@ const { githubUrl } =
       }
     }
 
+    let status = 500;
+
+    if (
+      error instanceof
+        GitHubApiError
+    ) {
+      status = error.status;
+    }
+
+    if (
+      error instanceof
+        RepositoryAnalysisError
+    ) {
+      status = error.status;
+    }
+
+    const responseBody: {
+      error: string;
+      resetAt?: string;
+    } = {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to create and analyze repository",
+    };
+
+    if (
+      error instanceof
+        GitHubApiError &&
+      error.code ===
+        "RATE_LIMITED" &&
+      error.resetAt
+    ) {
+      responseBody.resetAt =
+        error.resetAt.toISOString();
+    }
+
     return NextResponse.json(
+      responseBody,
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to create and analyze repository",
-      },
-      {
-        status: 500,
+        status,
       }
     );
   }

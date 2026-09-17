@@ -1,15 +1,20 @@
 import { GithubTreeItem } from "@/types/github";
 
-const allowedExtensions = [".ts", ".tsx", ".js", ".jsx"];
+const allowedExtensions = [
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+];
 
-const ignoredFolders = [
+const ignoredFolders = new Set([
   "node_modules",
   ".next",
   "dist",
   "build",
   "coverage",
   "vendor",
-];
+]);
 
 const ignoredFilePatterns = [
   "eslint.config",
@@ -36,53 +41,105 @@ const preferredFolders = [
 export function filterSourceFiles(
   tree: GithubTreeItem[]
 ): GithubTreeItem[] {
-  const filtered = tree.filter((item) => {
-    if (item.type !== "blob") {
-      return false;
+  const filtered = tree.filter(
+    (item) => {
+      if (
+        item.type !== "blob"
+      ) {
+        return false;
+      }
+
+      const path =
+        item.path.toLowerCase();
+
+      const pathSegments =
+        path.split("/");
+
+      const fileName =
+        pathSegments[
+          pathSegments.length - 1
+        ];
+
+      // Ignore generated/vendor folders.
+      const isIgnoredFolder =
+        pathSegments.some(
+          (segment) =>
+            ignoredFolders.has(
+              segment
+            )
+        );
+
+      if (isIgnoredFolder) {
+        return false;
+      }
+
+      // Ignore config/tooling files.
+      const isIgnoredFile =
+        ignoredFilePatterns.some(
+          (pattern) =>
+            fileName.includes(
+              pattern
+            )
+        );
+
+      if (isIgnoredFile) {
+        return false;
+      }
+
+      // Only analyze supported
+      // source file types.
+      return allowedExtensions.some(
+        (extension) =>
+          path.endsWith(
+            extension
+          )
+      );
     }
+  );
 
-    const path = item.path.toLowerCase();
+  return filtered.sort(
+    (a, b) => {
+      const aPath =
+        a.path.toLowerCase();
 
-    const isIgnoredFolder = ignoredFolders.some((folder) =>
-      path.includes(`${folder}/`)
-    );
+      const bPath =
+        b.path.toLowerCase();
 
-    if (isIgnoredFolder) {
-      return false;
+      const aPreferred =
+        preferredFolders.some(
+          (folder) =>
+            aPath.startsWith(
+              folder
+            )
+        );
+
+      const bPreferred =
+        preferredFolders.some(
+          (folder) =>
+            bPath.startsWith(
+              folder
+            )
+        );
+
+      if (
+        aPreferred &&
+        !bPreferred
+      ) {
+        return -1;
+      }
+
+      if (
+        !aPreferred &&
+        bPreferred
+      ) {
+        return 1;
+      }
+
+      // Deterministic order
+      // inside each group.
+      return aPath.localeCompare(
+        bPath
+      );
     }
-
-    const isIgnoredFile = ignoredFilePatterns.some((pattern) =>
-      path.includes(pattern)
-    );
-
-    if (isIgnoredFile) {
-      return false;
-    }
-
-    const hasAllowedExtension = allowedExtensions.some((ext) =>
-      path.endsWith(ext)
-    );
-
-    return hasAllowedExtension;
-  });
-
-  return filtered.sort((a, b) => {
-    const aPreferred = preferredFolders.some((folder) =>
-      a.path.startsWith(folder)
-    );
-
-    const bPreferred = preferredFolders.some((folder) =>
-      b.path.startsWith(folder)
-    );
-
-    if (aPreferred && !bPreferred) {
-      return -1;
-    }
-
-    if (!aPreferred && bPreferred) {
-      return 1;
-    }
-
-    return 0;
-  });
+  );
 }

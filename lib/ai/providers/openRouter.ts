@@ -3,6 +3,8 @@ import {
   AIProvider,
 } from "@/lib/ai/types";
 
+import { AIServiceError } from "@/lib/ai/error";
+
 type OpenRouterResponse = {
   choices?: {
     message?: {
@@ -11,13 +13,19 @@ type OpenRouterResponse = {
   }[];
 };
 
-// Use specific models instead of openrouter/free.
-// openrouter/free may route to unsuitable models
-// such as content-safety classifiers.
+const OPENROUTER_URL =
+  "https://openrouter.ai/api/v1/chat/completions";
+
+const REQUEST_TIMEOUT_MS =
+  20_000;
+
+// Ordered from most suitable
+// for RepoLens code analysis
+// to general fallback models.
 const MODELS = [
-  "liquid/lfm-2.5-2.6b:free",
   "cohere/north-mini-code:free",
   "openai/gpt-oss-20b:free",
+  "liquid/lfm-2.5-2.6b:free",
 ];
 
 export const openRouterProvider: AIProvider = {
@@ -28,9 +36,12 @@ export const openRouterProvider: AIProvider = {
       process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
-      throw new Error(
-        "OPENROUTER_API_KEY is not configured"
-      );
+      throw new AIServiceError({
+        message:
+          "AI service is not configured.",
+        code: "NOT_CONFIGURED",
+        status: 503,
+      });
     }
 
     let lastError =
@@ -38,53 +49,99 @@ export const openRouterProvider: AIProvider = {
 
     for (const model of MODELS) {
       try {
-        const response = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
+        const response =
+          await fetch(
+            OPENROUTER_URL,
+            {
+              method: "POST",
 
-            headers: {
-              Authorization:
-                `Bearer ${apiKey}`,
+              headers: {
+                Authorization:
+                  `Bearer ${apiKey}`,
 
-              "Content-Type":
-                "application/json",
-            },
+                "Content-Type":
+                  "application/json",
+              },
 
-            body: JSON.stringify({
-              model,
-              messages,
-              temperature: 0.2,
-            }),
-          }
-        );
+              body:
+                JSON.stringify({
+                  model,
+                  messages,
+                  temperature: 0.2,
+                }),
 
-        // Model unavailable / rate limited
+              signal:
+                AbortSignal.timeout(
+                  REQUEST_TIMEOUT_MS
+                ),
+            }
+          );
+
+        /*
+         * Authentication problems are
+         * account-level failures.
+         *
+         * Trying another model will not
+         * fix an invalid API key.
+         */
+        if (
+          response.status === 401
+        ) {
+          throw new AIServiceError({
+            message:
+              "AI service is temporarily unavailable.",
+            code: "PROVIDER_UNAVAILABLE",
+            status: 503,
+          });
+        }
+
         if (!response.ok) {
           const errorText =
-            await response.text();
+            await safeErrorText(
+              response
+            );
 
           lastError =
-            `${model} failed: ${response.status} ${errorText}`;
+            `${model} failed with ${response.status}` +
+            (errorText
+              ? `: ${errorText}`
+              : "");
 
           console.warn(
             `OpenRouter model failed: ${model}`,
             response.status
           );
 
-          // Try next model
+          // Try the next model.
           continue;
         }
 
-        const data =
-          (await response.json()) as OpenRouterResponse;
+        let data:
+          OpenRouterResponse;
+
+        try {
+          data =
+            (await response.json()) as OpenRouterResponse;
+        } catch {
+          lastError =
+            `${model} returned invalid JSON`;
+
+          console.warn(
+            `OpenRouter returned invalid JSON: ${model}`
+          );
+
+          continue;
+        }
 
         const content =
           data.choices?.[0]
             ?.message?.content
             ?.trim();
 
-        // Empty response
+        /*
+         * Successful HTTP response,
+         * but unusable generation.
+         */
         if (!content) {
           lastError =
             `${model} returned no content`;
@@ -96,7 +153,11 @@ export const openRouterProvider: AIProvider = {
           continue;
         }
 
-        // Reject obvious classifier/safety-model output
+        /*
+         * Defensive check for responses
+         * that clearly came from an
+         * unsuitable classifier.
+         */
         const normalized =
           content.toLowerCase();
 
@@ -121,6 +182,34 @@ export const openRouterProvider: AIProvider = {
 
         return content;
       } catch (error) {
+        /*
+         * Invalid API key should stop
+         * immediately because every
+         * fallback will fail too.
+         */
+        if (
+          error instanceof AIServiceError
+        ) {
+          throw error;
+        }
+
+        if (
+          error instanceof Error &&
+          (error.name ===
+            "TimeoutError" ||
+            error.name ===
+              "AbortError")
+        ) {
+          lastError =
+            `${model} timed out`;
+
+          console.warn(
+            `OpenRouter model timed out: ${model}`
+          );
+
+          continue;
+        }
+
         lastError =
           error instanceof Error
             ? error.message
@@ -133,8 +222,33 @@ export const openRouterProvider: AIProvider = {
       }
     }
 
-    throw new Error(
-      `All OpenRouter models failed. ${lastError}`
-    );
+    console.error(
+  "All OpenRouter models failed:",
+  lastError
+);
+
+    throw new AIServiceError({
+      message:
+        "AI service is temporarily unavailable. Please try again later.",
+      code: "PROVIDER_UNAVAILABLE",
+      status: 503,
+    });
   },
 };
+
+async function safeErrorText(
+  response: Response
+): Promise<string> {
+  try {
+    const text =
+      await response.text();
+
+    // Avoid dumping a huge provider
+    // response into logs/UI.
+    return text
+      .slice(0, 300)
+      .trim();
+  } catch {
+    return "";
+  }
+}

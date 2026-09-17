@@ -6,6 +6,8 @@ import { getOwnedRepository } from "@/lib/auth/getOwnedRepository";
 
 import { repositoryReviewSchema } from "@/lib/validation/ai";
 
+import { AIServiceError } from "@/lib/ai/error";
+
 export async function POST(
   request: Request
 ) {
@@ -94,6 +96,22 @@ export async function POST(
       "Repository AI review failed:",
       error
     );
+
+    if (
+      error instanceof
+        AIServiceError
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            error.message,
+        },
+        {
+          status:
+            error.status,
+        }
+      );
+    }
 
     return NextResponse.json(
       {

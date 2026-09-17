@@ -12,7 +12,7 @@ type AnalysisHistoryItem = {
 type Props = {
   repositoryId: number;
   analyses: AnalysisHistoryItem[];
-  currentAnalysisId: number;
+  currentAnalysisId: number | null;
 };
 
 export default function AnalysisHistory({

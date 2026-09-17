@@ -15,6 +15,8 @@ import {
 import { reviewFile } from "@/lib/ai/reviewFile";
 import { fileReviewSchema } from "@/lib/validation/ai";
 
+import { AIServiceError } from "@/lib/ai/error";
+
 export async function POST(
   request: Request
 ) {
@@ -237,6 +239,22 @@ export async function POST(
       "File AI review failed:",
       error
     );
+
+    if (
+      error instanceof
+        AIServiceError
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            error.message,
+        },
+        {
+          status:
+            error.status,
+        }
+      );
+    }
 
     return NextResponse.json(
       {

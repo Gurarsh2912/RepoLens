@@ -92,28 +92,112 @@ export default async function RepositoryPage({
         "completed"
     );
 
+  /*
+   * If there is no completed analysis,
+   * still show the repository and its
+   * failed / pending / processing history.
+   */
   if (!analysis) {
     return (
       <main className="min-h-screen bg-muted/20">
-        <div className="mx-auto max-w-7xl px-6 py-16">
-          <Link
-            href="/dashboard"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            ← Dashboard
-          </Link>
+        <div className="mx-auto max-w-7xl px-6 py-10">
+          {/* Navigation */}
+          <div className="mb-8">
+            <Link
+              href="/dashboard"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              ← Dashboard
+            </Link>
+          </div>
 
-          <div className="mt-8 rounded-2xl border bg-background p-10 text-center">
-            <h1 className="text-xl font-semibold">
+          {/* Repository header */}
+          <section className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  {repository.name}
+                </h1>
+
+                {repository.language && (
+                  <span className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
+                    {
+                      repository.language
+                    }
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-2 text-sm text-muted-foreground">
+                {repository.owner}/
+                {repository.name}
+              </p>
+
+              {repository.defaultBranch && (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Branch:{" "}
+                  <span className="font-medium text-foreground">
+                    {
+                      repository.defaultBranch
+                    }
+                  </span>
+                </p>
+              )}
+            </div>
+
+            {repository.githubUrl && (
+              <a
+                href={
+                  repository.githubUrl
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                GitHub ↗
+              </a>
+            )}
+          </section>
+
+          {/* No completed analysis */}
+          <section className="rounded-2xl border bg-background p-10 text-center">
+            <h2 className="text-xl font-semibold">
               No completed analysis
-            </h1>
+            </h2>
 
             <p className="mt-2 text-sm text-muted-foreground">
               RepoLens has not completed
-              an analysis for this
-              repository yet.
+              a successful analysis for
+              this repository yet.
             </p>
-          </div>
+          </section>
+
+          {/* History */}
+          <section className="mt-12">
+            <div className="mb-5">
+              <h2 className="text-2xl font-semibold tracking-tight">
+                Analysis history
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Previous analysis
+                attempts for this
+                repository.
+              </p>
+            </div>
+
+            <AnalysisHistory
+              repositoryId={
+                repository.id
+              }
+              analyses={
+                analysisHistory
+              }
+              currentAnalysisId={
+                null
+              }
+            />
+          </section>
         </div>
       </main>
     );
@@ -262,16 +346,18 @@ export default async function RepositoryPage({
 
           {/* Repository actions */}
           <div className="flex flex-wrap gap-3">
-            <a
-              href={
-                repository.githubUrl
-              }
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              GitHub ↗
-            </a>
+            {repository.githubUrl && (
+              <a
+                href={
+                  repository.githubUrl
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                GitHub ↗
+              </a>
+            )}
 
             <Link
               href={`/repository/${repository.id}/architecture`}

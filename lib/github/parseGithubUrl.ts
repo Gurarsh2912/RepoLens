@@ -1,24 +1,45 @@
 import { GithubRepoInfo } from "@/types/github";
 
-export function parseGithubUrl(url: string): GithubRepoInfo | null {
+export function parseGithubUrl(
+  url: string
+): GithubRepoInfo | null {
   try {
-    const parsedUrl = new URL(url);
+    const parsedUrl =
+      new URL(url.trim());
 
-    if(parsedUrl.hostname!=="github.com"){
-        return null;
+    const hostname =
+      parsedUrl.hostname.toLowerCase();
+
+    // Only GitHub repository URLs
+    if (
+      hostname !== "github.com" &&
+      hostname !== "www.github.com"
+    ) {
+      return null;
     }
 
-    const parts = parsedUrl.pathname.split("/").filter(Boolean)
+    const parts =
+      parsedUrl.pathname
+        .split("/")
+        .filter(Boolean);
 
-    if (parts.length < 2) {
+    // Repository URL should be:
+    // github.com/{owner}/{repo}
+    if (parts.length !== 2) {
       return null;
     }
 
     const owner = parts[0];
-    const repo = parts[1].replace(/\.git$/, "");
 
-    if(!owner || !repo) return null;
+    const repo =
+      parts[1].replace(
+        /\.git$/i,
+        ""
+      );
 
+    if (!owner || !repo) {
+      return null;
+    }
 
     return {
       owner,
