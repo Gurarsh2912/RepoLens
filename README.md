@@ -30,6 +30,30 @@ Provide a GitHub repository URL and RepoLens will:
 
 ---
 
+## Screenshots
+
+### Dashboard
+
+![RepoLens Dashboard](public/screenshots/dashboard.png)
+
+### Repository Analysis
+
+![Repository Analysis](public/screenshots/repository-overview.png)
+
+### File Analysis
+
+![File Analysis](public/screenshots/file-analysis.png)
+
+### Dependency Architecture
+
+![Dependency Architecture](public/screenshots/architecture.png)
+
+### Analysis Comparison
+
+![Analysis Comparison](public/screenshots/comparison.png)
+
+---
+
 ## Key Features
 
 ### Static Code Analysis
