@@ -1,36 +1,150 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RepoLens
 
-## Getting Started
+RepoLens is a full-stack repository analysis platform that helps developers understand the structure, quality, and evolution of JavaScript and TypeScript codebases.
 
-First, run the development server:
+It combines deterministic static analysis, AST parsing, dependency-graph analysis, complexity metrics, historical comparisons, and source-grounded AI reviews in one interface.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+🔗 **Live Demo:** https://repo-lens-hazel.vercel.app
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Why RepoLens?
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Understanding an unfamiliar codebase usually requires manually searching through files, imports, dependencies, large modules, and potential maintainability issues.
 
-## Learn More
+RepoLens automates much of that process.
 
-To learn more about Next.js, take a look at the following resources:
+Given a GitHub repository, RepoLens can:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- analyze JavaScript and TypeScript source files
+- parse code using the TypeScript Compiler API
+- detect functions, classes, interfaces, types, imports, and exports
+- calculate file-level complexity
+- detect static-analysis issues
+- build an internal dependency graph
+- rank architecturally important files
+- calculate repository health
+- generate source-grounded AI reviews
+- preserve analysis history
+- compare repository evolution across analysis runs
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Features
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Static Code Analysis
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+RepoLens analyzes `.js`, `.jsx`, `.ts`, and `.tsx` files and applies custom static-analysis rules.
+
+Current checks include:
+
+- high file complexity
+- large files
+- excessive dependencies
+- excessive functions
+- deep nesting
+- `console` statements
+- usage of `any`
+- empty catch blocks
+
+The deterministic analyzer works independently of the AI layer.
+
+---
+
+### AST-Based Source Analysis
+
+RepoLens uses the TypeScript Compiler API to parse source files and extract structural information including:
+
+- functions
+- arrow functions
+- classes
+- class methods
+- interfaces
+- type aliases
+- imports
+- exports
+
+This allows RepoLens to understand source-code structure without relying on an LLM.
+
+---
+
+### Dependency Graph
+
+RepoLens builds an adjacency-list representation of internal repository dependencies.
+
+For each analyzed file, it calculates:
+
+- incoming dependencies
+- outgoing dependencies
+- dependency importance
+
+The current importance score is derived from dependency relationships and is used to identify central modules in the repository.
+
+---
+
+### Repository Health Score
+
+RepoLens calculates a health score using deterministic analysis data such as:
+
+- issue severity
+- complexity
+- architectural importance
+- hotspot characteristics
+
+This provides a quick overview of areas that may deserve additional attention.
+
+---
+
+### Important File Detection
+
+Files are ranked using dependency-graph metrics so users can quickly identify modules with greater architectural influence.
+
+This is useful when exploring an unfamiliar codebase because developers can focus on important files first instead of reading the repository sequentially.
+
+---
+
+### File-Level Analysis
+
+Each analyzed file has its own detailed view containing:
+
+- lines of code
+- complexity
+- functions
+- classes
+- interfaces
+- type aliases
+- parsed imports
+- dependencies
+- dependents
+- importance score
+- static-analysis findings
+
+---
+
+### AI File Review
+
+RepoLens can generate an AI-assisted explanation of an analyzed file.
+
+The AI receives deterministic RepoLens analysis as context and returns:
+
+- summary
+- strengths
+- concerns
+- recommendations
+
+AI output is runtime-validated with Zod before being shown to the user.
+
+Malformed structured responses are retried once before returning a controlled error.
+
+---
+
+### Source-Grounded Repository Review
+
+RepoLens also generates repository-level architecture reviews.
+
+Instead of sending the entire repository to the model, RepoLens prioritizes source files using signals such as:
+
+```text
+importanceScore
+complexity
+issue count
